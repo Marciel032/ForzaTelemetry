@@ -12,6 +12,10 @@ namespace ForzaTelemetry
 
     public class TelemetryReader
     {
+        private const int SledPacketLength = 232;
+        private const int CarDashPacketLength = 311;
+        private const int HorizonCarDashPacketLength = 324;
+
         private readonly UdpClient udpClient;
         private bool active;
         private object lockControl;
@@ -46,21 +50,31 @@ namespace ForzaTelemetry
 
                 else
                 {
-                    var handle = GCHandle.Alloc(taskResult.Result.Buffer, GCHandleType.Pinned);
-                    try
-                    {
-                        var telemetry = (Telemetry)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(Telemetry));
+                    var telemetry = new Telemetry();
+                    var bytes = taskResult.Result.Buffer;
+                    telemetry.Version = GetVersion(bytes.Length);
 
-                        ReadNextTelemetry();
+                    if (telemetry.Version == ForzaDataVersion.Unknown)
+                        throw new Exception("Unknown version.");
 
-                        lock (lockControl)
-                        {
-                            OnTelemetryRead?.Invoke(telemetry);
-                        }
+                    ReadNextTelemetry();
+
+                    telemetry.Slead = Read<TelemetrySlead>(bytes);
+                    var bytesDash = new byte[79];
+                    switch (telemetry.Version) {
+                        case ForzaDataVersion.CarDash:                            
+                            Array.Copy(bytes, SledPacketLength, bytesDash, 0, 79);
+                            telemetry.Dash = Read<TelemetryDash>(bytesDash);
+                            break;
+                        case ForzaDataVersion.HorizonCarDash:
+                            Array.Copy(bytes, SledPacketLength + 12, bytesDash, 0, 79);
+                            telemetry.Dash = Read<TelemetryDash>(bytes);
+                            break;
                     }
-                    finally
+                    
+                    lock (lockControl)
                     {
-                        handle.Free();
+                        OnTelemetryRead?.Invoke(telemetry);
                     }
                 }
             }
@@ -68,6 +82,28 @@ namespace ForzaTelemetry
                 ReadNextTelemetry();
 
                 Console.WriteLine(ex);
+            }
+        }
+
+        private T Read<T>(byte[] bytes) {
+            var handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+            try
+            {
+                return (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
+            }
+            finally
+            {
+                handle.Free();
+            }
+        }
+
+        private ForzaDataVersion GetVersion(int length)
+        {
+            switch(length){
+                case SledPacketLength: return ForzaDataVersion.Sled;
+                case CarDashPacketLength: return ForzaDataVersion.CarDash;
+                case HorizonCarDashPacketLength: return ForzaDataVersion.HorizonCarDash;
+                default: return ForzaDataVersion.Unknown;
             }
         }
     }

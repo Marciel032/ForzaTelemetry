@@ -6,8 +6,24 @@ using System.Threading.Tasks;
 
 namespace ForzaTelemetry
 {
-    [Serializable]
+    public enum ForzaDataVersion : byte
+    {
+        Unknown = 0,
+        Sled = 1,
+        CarDash = 2,
+        HorizonCarDash = 3
+    }
+
     public struct Telemetry
+    {
+        public ForzaDataVersion Version;
+        public TelemetrySlead Slead;
+        public TelemetryDash Dash;        
+    }
+
+
+    [Serializable]
+    public struct TelemetrySlead
     {
         public int IsRaceOn; // = 1 when race is on. = 0 when in menus/race stopped …
 
@@ -83,7 +99,11 @@ namespace ForzaTelemetry
         public int CarPerformanceIndex; //Between 100 (slowest car) and 999 (fastest car) inclusive
         public int DrivetrainType; //Corresponds to EDrivetrainType; 0 = FWD, 1 = RWD, 2 = AWD
         public int NumCylinders; //Number of cylinders in the engine
+    }
 
+    [Serializable]
+    public struct TelemetryDash
+    {
         //Position (meters)
         public float PositionX;
         public float PositionY;
@@ -115,7 +135,7 @@ namespace ForzaTelemetry
         public byte HandBrake;
         public byte Gear;
         public sbyte Steer;
-        
+
         public sbyte NormalizedDrivingLine;
         public sbyte NormalizedAIBrakeDifference;
     }
